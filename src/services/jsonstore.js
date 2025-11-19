@@ -22,6 +22,35 @@ const actions = {
                 responseData = responseData[token];
             }
         }
+
+        if (query.where && typeof responseData === 'object') {
+            const [field, rawValue] = query.where.split("=");
+            const value = rawValue.replace(/^"|"$/g, "");
+
+            const filtered = Object.entries(responseData)
+                .filter(([id, obj]) => obj[field] == value);
+
+            responseData = Object.fromEntries(filtered);
+        }
+
+        if (query.sortBy && typeof responseData === 'object') {
+            const [field, direction] = query.sortBy.split(' ');
+            const sortOrder = direction === 'desc' ? -1 : 1;
+
+            const entries = Object.entries(responseData).sort(([idA, a], [idB, b]) => {
+                const valA = a[field];
+                const valB = b[field];
+
+                const isNumber = typeof valA === 'number' && typeof valB === 'number';
+                return (isNumber
+                    ? valA - valB
+                    : String(valA).localeCompare(String(valB))
+                ) * sortOrder;
+            });
+
+            responseData = Object.fromEntries(entries);
+        }
+
         return responseData;
     },
     post: (context, tokens, query, body) => {
