@@ -1,5 +1,4 @@
-const { ServiceError } = require('./common/errors');
-
+const { ServiceError, RequestError } = require('./common/errors');
 
 function createHandler(plugins, services) {
     return async function handler(req, res) {
@@ -104,12 +103,20 @@ async function parseRequest(req) {
     const tokens = url.pathname.split('/').filter(x => x.length > 0);
     const serviceName = tokens.shift();
     const queryString = url.search.split('?')[1] || '';
-    const query = queryString
-        .split('&')
-        .filter(s => s != '')
-        .map(x => x.split('='))
-        .reduce((p, [k, v]) => Object.assign(p, { [k]: decodeURIComponent(v.replace(/\+/g, " ")) }), {});
-
+    let query = '';
+    try {
+        query = queryString
+            .split('&')
+            .filter(s => s != '')
+            .map((x) => {
+                const parts = x.split('=');
+                return parts
+            })
+            .reduce((p, [k, v]) => Object.assign(p, { [k]: decodeURIComponent(v.replace(/\+/g, " ")) }), {});
+    } catch (err) {
+        console.error(err);
+        throw new RequestError(`Invalid query ${queryString}`);
+    }    
     let body;
     // If req stream has ended body has been parsed
     if (req.readableEnded) {

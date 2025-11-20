@@ -1,6 +1,7 @@
 const fs = require('fs');
 const Service = require('./Service');
 const uuid = require('../common/util').uuid;
+const { RequestError } = require('../common/errors');
 
 
 const data = fs.existsSync('./data') ? fs.readdirSync('./data').reduce((p, c) => {
@@ -23,34 +24,59 @@ const actions = {
             }
         }
 
-        if (query.where && typeof responseData === 'object') {
-            const [field, rawValue] = query.where.split("=");
-            const value = rawValue.replace(/^"|"$/g, "");
+        try {
+            if (query.where && typeof responseData === 'object') {
+                if (query.where.trim() === '') {
+                    throw new Error(`Invalid WHERE queryString syntax`);
+                }
+                const [field, rawValue] = query.where.split("=");
 
-            const filtered = Object.entries(responseData)
-                .filter(([id, obj]) => obj[field] == value);
+                if (field.trim() === "") {
+                    throw new Error(`Field can not be empty string: ${query.where}`);
+                }
 
-            responseData = Object.fromEntries(filtered);
+                if (!rawValue) {
+                    throw new RequestError(`Missing "=" %3D between field and value: ${query.where}`);
+                }
+
+                if (!(rawValue.startsWith('"') && rawValue.endsWith('"'))) {
+                    throw new RequestError(`WHERE value must be in quotes %22 : ${query.where}`);
+                }
+                const value = rawValue.replace(/^"|"$/g, "");
+
+                const filtered = Object.entries(responseData)
+                    .filter(([id, obj]) => obj[field] == value);
+
+                responseData = Object.fromEntries(filtered);
+            }
+
+            if (query.sortBy && typeof responseData === 'object') {
+                const [field, direction] = query.sortBy.split(' ');
+
+                if (!field) {
+                    throw new Error(`Invalid sortBy syntax: ${query.sortBy}`);
+                }
+
+                const sortOrder = direction === 'desc' ? -1 : 1;
+
+                const entries = Object.entries(responseData).sort(([idA, a], [idB, b]) => {
+                    const valA = a[field];
+                    const valB = b[field];
+
+                    const isNumber = typeof valA === 'number' && typeof valB === 'number';
+                    return (isNumber
+                        ? valA - valB
+                        : valA.localeCompare(valB)
+                    ) * sortOrder;
+                });
+
+                responseData = Object.fromEntries(entries);
+            }
+        } catch (err) {
+            console.error(err);
+            throw new RequestError(err.message || "Invalid query");
         }
-
-        if (query.sortBy && typeof responseData === 'object') {
-            const [field, direction] = query.sortBy.split(' ');
-            const sortOrder = direction === 'desc' ? -1 : 1;
-
-            const entries = Object.entries(responseData).sort(([idA, a], [idB, b]) => {
-                const valA = a[field];
-                const valB = b[field];
-
-                const isNumber = typeof valA === 'number' && typeof valB === 'number';
-                return (isNumber
-                    ? valA - valB
-                    : String(valA).localeCompare(String(valB))
-                ) * sortOrder;
-            });
-
-            responseData = Object.fromEntries(entries);
-        }
-
+        
         return responseData;
     },
     post: (context, tokens, query, body) => {
