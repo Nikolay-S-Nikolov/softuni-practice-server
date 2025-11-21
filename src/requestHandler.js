@@ -106,16 +106,13 @@ async function parseRequest(req) {
     let query = '';
     try {
         query = queryString
-            .split('&')
-            .filter(s => s != '')
-            .map((x) => {
-                const parts = x.split('=');
-                return parts
-            })
-            .reduce((p, [k, v]) => Object.assign(p, { [k]: decodeURIComponent(v.replace(/\+/g, " ")) }), {});
+        .split('&')
+        .filter(s => s != '')
+        .map(x => x.split('='))
+        .reduce((p, [k, v]) => Object.assign(p, { [k]: decodeURIComponent(v.replace(/\+/g, " ")) }), {});
     } catch (err) {
         console.error(err);
-        throw new RequestError(`Invalid query ${queryString}`);
+        throw new RequestError(`Invalid query "${queryString}": ${err.message}`);
     }    
     let body;
     // If req stream has ended body has been parsed
